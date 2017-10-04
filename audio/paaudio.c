@@ -14,6 +14,8 @@ typedef struct {
     char *server;
     char *sink;
     char *source;
+    int lat_out;
+    int lat_in;
 } PAConf;
 
 typedef struct {
@@ -504,16 +506,12 @@ static pa_stream *qpa_simple_new (
     if (dir == PA_STREAM_PLAYBACK) {
         r = pa_stream_connect_playback (stream, dev, attr,
                                         PA_STREAM_INTERPOLATE_TIMING
-#ifdef PA_STREAM_ADJUST_LATENCY
                                         |PA_STREAM_ADJUST_LATENCY
-#endif
                                         |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
         r = pa_stream_connect_record (stream, dev, attr,
                                       PA_STREAM_INTERPOLATE_TIMING
-#ifdef PA_STREAM_ADJUST_LATENCY
                                       |PA_STREAM_ADJUST_LATENCY
-#endif
                                       |PA_STREAM_AUTO_TIMING_UPDATE);
     }
 
@@ -551,13 +549,9 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     ss.channels = as->nchannels;
     ss.rate = as->freq;
 
-    /*
-     * qemu audio tick runs at 100 Hz (by default), so processing
-     * data chunks worth 10 ms of sound should be a good fit.
-     */
-    ba.tlength = pa_usec_to_bytes (10 * 1000, &ss);
-    ba.minreq = pa_usec_to_bytes (5 * 1000, &ss);
+    ba.tlength = pa_usec_to_bytes (g->conf.lat_out * 1000, &ss);
     ba.maxlength = -1;
+    ba.minreq = -1;
     ba.prebuf = -1;
 
     obt_as.fmt = pa_to_audfmt (ss.format, &obt_as.endianness);
@@ -609,6 +603,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
 {
     int error;
     pa_sample_spec ss;
+    pa_buffer_attr ba;
     struct audsettings obt_as = *as;
     PAVoiceIn *pa = (PAVoiceIn *) hw;
     paaudio *g = pa->g = drv_opaque;
@@ -616,6 +611,9 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
     ss.format = audfmt_to_pa (as->fmt, as->endianness);
     ss.channels = as->nchannels;
     ss.rate = as->freq;
+
+    ba.fragsize = pa_usec_to_bytes (g->conf.lat_in * 1000, &ss);
+    ba.maxlength = -1;
 
     obt_as.fmt = pa_to_audfmt (ss.format, &obt_as.endianness);
 
@@ -626,7 +624,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
         g->conf.source,
         &ss,
         NULL,                   /* channel map */
-        NULL,                   /* buffering attributes */
+        &ba,                    /* buffering attributes */
         &error
         );
     if (!pa->stream) {
@@ -810,6 +808,8 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
 /* common */
 static PAConf glob_conf = {
     .samples = 4096,
+    .lat_out = 20,
+    .lat_in  = 20
 };
 
 static void *qpa_audio_init (void)
@@ -919,6 +919,18 @@ struct audio_option qpa_options[] = {
         .tag   = AUD_OPT_STR,
         .valp  = &glob_conf.source,
         .descr = "source device name"
+    },
+    {
+        .name  = "LATENCY_OUT",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.lat_out,
+        .descr = "requested latency for output device (ms)"
+    },
+    {
+        .name  = "LATENCY_IN",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.lat_in,
+        .descr = "requested latency for input device (ms)"
     },
     { /* End of list */ }
 };
