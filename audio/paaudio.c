@@ -550,7 +550,7 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     ss.rate = as->freq;
 
     ba.tlength = pa_usec_to_bytes (g->conf.lat_out * 1000, &ss);
-    ba.maxlength = -1;
+    ba.maxlength = ba.tlength * 2;
     ba.minreq = -1;
     ba.prebuf = -1;
 
@@ -613,7 +613,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
     ss.rate = as->freq;
 
     ba.fragsize = pa_usec_to_bytes (g->conf.lat_in * 1000, &ss);
-    ba.maxlength = -1;
+    ba.maxlength = ba.fragsize * 2;
 
     obt_as.fmt = pa_to_audfmt (ss.format, &obt_as.endianness);
 
