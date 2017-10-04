@@ -14,6 +14,7 @@ typedef struct {
     char *server;
     char *sink;
     char *source;
+    int lat_dynamic;
     int lat_out;
     int lat_in;
 } PAConf;
@@ -506,12 +507,12 @@ static pa_stream *qpa_simple_new (
     if (dir == PA_STREAM_PLAYBACK) {
         r = pa_stream_connect_playback (stream, dev, attr,
                                         PA_STREAM_INTERPOLATE_TIMING
-                                        |PA_STREAM_ADJUST_LATENCY
+                                        |(g->conf.lat_dynamic ? PA_STREAM_ADJUST_LATENCY : 0)
                                         |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
         r = pa_stream_connect_record (stream, dev, attr,
                                       PA_STREAM_INTERPOLATE_TIMING
-                                      |PA_STREAM_ADJUST_LATENCY
+                                      |(g->conf.lat_dynamic ? PA_STREAM_ADJUST_LATENCY : 0)
                                       |PA_STREAM_AUTO_TIMING_UPDATE);
     }
 
@@ -612,8 +613,13 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
     ss.channels = as->nchannels;
     ss.rate = as->freq;
 
-    ba.fragsize = pa_usec_to_bytes (g->conf.lat_in * 1000, &ss);
-    ba.maxlength = ba.fragsize * 2;
+    if (g->conf.lat_dynamic) {
+    	ba.fragsize = pa_usec_to_bytes (g->conf.lat_in * 1000, &ss);
+    	ba.maxlength = ba.fragsize * 2;
+    } else {
+        ba.fragsize = -1;
+        ba.maxlength = -1;
+    }
 
     obt_as.fmt = pa_to_audfmt (ss.format, &obt_as.endianness);
 
@@ -808,8 +814,9 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
 /* common */
 static PAConf glob_conf = {
     .samples = 4096,
-    .lat_out = 20,
-    .lat_in  = 20
+    .lat_dynamic = 0,
+    .lat_out = 10,
+    .lat_in  = 10
 };
 
 static void *qpa_audio_init (void)
@@ -919,6 +926,12 @@ struct audio_option qpa_options[] = {
         .tag   = AUD_OPT_STR,
         .valp  = &glob_conf.source,
         .descr = "source device name"
+    },
+    {
+        .name  = "LATENCY_DYNAMIC",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &glob_conf.lat_dynamic,
+        .descr = "enable dynamic latency adjustment"
     },
     {
         .name  = "LATENCY_OUT",
