@@ -507,12 +507,12 @@ static pa_stream *qpa_simple_new (
     if (dir == PA_STREAM_PLAYBACK) {
         r = pa_stream_connect_playback (stream, dev, attr,
                                         PA_STREAM_INTERPOLATE_TIMING
-                                        |(g->conf.lat_dynamic ? PA_STREAM_ADJUST_LATENCY : 0)
+                                        |(g->conf.lat_dynamic & 1 ? PA_STREAM_ADJUST_LATENCY : 0)
                                         |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
         r = pa_stream_connect_record (stream, dev, attr,
                                       PA_STREAM_INTERPOLATE_TIMING
-                                      |(g->conf.lat_dynamic ? PA_STREAM_ADJUST_LATENCY : 0)
+                                      |(g->conf.lat_dynamic & 2 ? PA_STREAM_ADJUST_LATENCY : 0)
                                       |PA_STREAM_AUTO_TIMING_UPDATE);
     }
 
@@ -613,7 +613,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
     ss.channels = as->nchannels;
     ss.rate = as->freq;
 
-    if (g->conf.lat_dynamic) {
+    if (g->conf.lat_dynamic & 2) {
     	ba.fragsize = pa_usec_to_bytes (g->conf.lat_in * 1000, &ss);
     	ba.maxlength = ba.fragsize * 2;
     } else {
@@ -814,7 +814,7 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
 /* common */
 static PAConf glob_conf = {
     .samples = 4096,
-    .lat_dynamic = 0,
+    .lat_dynamic = 2,
     .lat_out = 10,
     .lat_in  = 10
 };
@@ -929,9 +929,9 @@ struct audio_option qpa_options[] = {
     },
     {
         .name  = "LATENCY_DYNAMIC",
-        .tag   = AUD_OPT_BOOL,
+        .tag   = AUD_OPT_INT,
         .valp  = &glob_conf.lat_dynamic,
-        .descr = "enable dynamic latency adjustment"
+        .descr = "enable dynamic latency adjustment (1 - output, 2 - input, 3 - both)"
     },
     {
         .name  = "LATENCY_OUT",
