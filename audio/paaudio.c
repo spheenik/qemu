@@ -310,7 +310,7 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
      * qemu audio tick runs at 100 Hz (by default), so processing
      * data chunks worth 10 ms of sound should be a good fit.
      */
-    ba.tlength = pa_usec_to_bytes (40 * 1000, &ss);
+    ba.tlength = pa_usec_to_bytes (2 * audio_get_timer_ticks() / 1000, &ss);
     ba.minreq = -1;
     ba.maxlength = -1;
     ba.prebuf = -1;
@@ -333,7 +333,10 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     }
 
     audio_pcm_init_info (&hw->info, &obt_as);
-    hw->samples = g->conf.samples;
+    //hw->samples = g->conf.samples;
+
+    // TODO
+    hw->samples = (4 * audio_get_dac_frequency()) / audio_get_timer_frequency();
 
     return 0;
 
