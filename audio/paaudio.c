@@ -23,16 +23,20 @@
  */
 #include "qemu/osdep.h"
 #include "audio.h"
+#include "hw/audio/intel-hda-defs.h"
 
 #include <pulse/pulseaudio.h>
+#include <include/qemu/timer.h>
 
 #define AUDIO_CAP "pulseaudio"
 #include "audio_int.h"
 
-#define dolog(...) AUD_log ("PA", __VA_ARGS__)
-
 typedef struct {
-    int samples;
+    int buffer_size;
+    int tlength;
+#ifdef PA_STREAM_ADJUST_LATENCY
+    int adjust_latency_out;
+#endif
     char *server;
     char *sink;
     char *source;
@@ -101,7 +105,11 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
     decr = samples;
     rpos = hw->rpos;
 
-    dolog("TRANSFER avail: %d bytes, max %d bytes -> %d samples from %d\n", (int)avail_bytes, (int)max_bytes, samples, rpos);
+    if (avail_bytes < max_bytes) {
+        dolog("avail: %d, wanted: %d \n", (int)avail_bytes, (int)max_bytes);
+    }
+
+    //dolog("TRANSFER avail: %d bytes, max %d bytes -> %d samples from %d\n", (int)avail_bytes, (int)max_bytes, samples, rpos);
 
     while (samples) {
         int left_till_end_samples = hw->samples - rpos;
@@ -119,8 +127,7 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
         src = hw->mix_buf + rpos;
         hw->clip (pa_dst, src, convert_samples);
 
-        int r = pa_stream_write (pa->stream, pa_dst, convert_bytes, NULL, 0LL, PA_SEEK_RELATIVE);
-        dolog("    CHUNK %d samples from %d, result %d\n", convert_samples, rpos, r);
+        pa_stream_write (pa->stream, pa_dst, convert_bytes, NULL, 0LL, PA_SEEK_RELATIVE);
 
         rpos = (rpos + convert_samples) % hw->samples;
         samples -= convert_samples;
@@ -128,7 +135,7 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
 
     pa_threaded_mainloop_unlock (pa->g->mainloop);
 
-    dolog("\n");
+    //dolog("\n");
 
     hw->rpos = rpos;
 
@@ -225,13 +232,6 @@ static void stream_state_cb (pa_stream *s, void * userdata)
     }
 }
 
-static void stream_request_cb (pa_stream *s, size_t length, void *userdata)
-{
-    paaudio *g = userdata;
-
-    pa_threaded_mainloop_signal (g->mainloop, 0);
-}
-
 static pa_stream *qpa_simple_new (
         paaudio *g,
         const char *name,
@@ -253,14 +253,12 @@ static pa_stream *qpa_simple_new (
     }
 
     pa_stream_set_state_callback (stream, stream_state_cb, g);
-    pa_stream_set_read_callback (stream, stream_request_cb, g);
-    pa_stream_set_write_callback (stream, stream_request_cb, g);
 
     if (dir == PA_STREAM_PLAYBACK) {
         r = pa_stream_connect_playback (stream, dev, attr,
                                         PA_STREAM_INTERPOLATE_TIMING
 #ifdef PA_STREAM_ADJUST_LATENCY
-                                        |PA_STREAM_ADJUST_LATENCY
+                                        | (g->conf.adjust_latency_out ? PA_STREAM_ADJUST_LATENCY : 0)
 #endif
                                         |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
@@ -292,6 +290,20 @@ fail:
     return NULL;
 }
 
+
+static int64_t hob (int64_t num)
+{
+    if (!num)
+        return 0;
+
+    int ret = 1;
+
+    while (num >>= 1)
+        ret <<= 1;
+
+    return ret;
+}
+
 static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
                         void *drv_opaque)
 {
@@ -302,17 +314,40 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     PAVoiceOut *pa = (PAVoiceOut *) hw;
     paaudio *g = pa->g = drv_opaque;
 
+    int64_t timer_tick_duration = audio_MAX(audio_get_timer_ticks(), 1 * SCALE_MS);
+    int64_t frames_per_tick_x1000 = ((timer_tick_duration * as->freq * 1000LL) / NANOSECONDS_PER_SECOND);
+
+    int64_t tlength = g->conf.tlength;
+    if (tlength == 0) {
+        tlength = (frames_per_tick_x1000 + 999) / 1000;
+    }
+    int64_t buflen = g->conf.buffer_size;
+    if (buflen == 0) {
+        buflen = hob(frames_per_tick_x1000  / 125);
+        buflen = audio_MAX(HDA_BUFFER_SIZE, buflen); // must be at least HDA_BUFFER_SIZE bytes for HDA to work at all!
+    }
+
+    float ms_per_frame = 1000.0f / as->freq;
+
+    dolog("tick duration: %.2f ms (%.3f frames)\n",
+          ((float) timer_tick_duration) / SCALE_MS,
+          (float)frames_per_tick_x1000 / 1000.0f);
+
+    dolog("internal buffer: %.2f ms (%"PRId64" frames)\n",
+          buflen * ms_per_frame,
+          buflen);
+
+    dolog("tlength: %.2f ms (%"PRId64" frames)\n",
+          tlength * ms_per_frame,
+          tlength);
+
     ss.format = audfmt_to_pa (as->fmt, as->endianness);
     ss.channels = as->nchannels;
     ss.rate = as->freq;
 
-    /*
-     * qemu audio tick runs at 100 Hz (by default), so processing
-     * data chunks worth 10 ms of sound should be a good fit.
-     */
-    ba.tlength = pa_usec_to_bytes (2 * audio_get_timer_ticks() / 1000, &ss);
-    ba.minreq = -1;
+    ba.tlength = tlength * pa_frame_size (&ss);
     ba.maxlength = -1;
+    ba.minreq = -1;
     ba.prebuf = -1;
 
     obt_as.fmt = pa_to_audfmt (ss.format, &obt_as.endianness);
@@ -333,10 +368,7 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     }
 
     audio_pcm_init_info (&hw->info, &obt_as);
-    //hw->samples = g->conf.samples;
-
-    // TODO
-    hw->samples = (4 * audio_get_dac_frequency()) / audio_get_timer_frequency();
+    hw->samples = buflen;
 
     return 0;
 
@@ -409,8 +441,11 @@ static int qpa_ctl_out (HWVoiceOut *hw, int cmd, ...)
 
 /* common */
 static PAConf glob_conf = {
-    .samples = 4096,
+#ifdef PA_STREAM_ADJUST_LATENCY
+        .adjust_latency_out = 0,
+#endif
 };
+
 
 static void *qpa_audio_init (void)
 {
@@ -497,11 +532,25 @@ static void qpa_audio_fini (void *opaque)
 
 struct audio_option qpa_options[] = {
     {
-        .name  = "SAMPLES",
+        .name  = "INT_BUF_SIZE",
         .tag   = AUD_OPT_INT,
-        .valp  = &glob_conf.samples,
-        .descr = "buffer size in samples"
+        .valp  = &glob_conf.buffer_size,
+        .descr = "internal buffer size in frames"
     },
+    {
+        .name  = "TLENGTH",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.tlength,
+        .descr = "playback buffer target length in frames"
+    },
+#ifdef PA_STREAM_ADJUST_LATENCY
+    {
+            .name  = "ADJUST_LATENCY_OUT",
+            .tag   = AUD_OPT_BOOL,
+            .valp  = &glob_conf.adjust_latency_out,
+            .descr = "let PA adjust latency for playback device"
+    },
+#endif
     {
         .name  = "SERVER",
         .tag   = AUD_OPT_STR,
