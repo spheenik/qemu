@@ -210,6 +210,10 @@ extern const struct mixeng_volume nominal_volume;
 void audio_driver_register(audio_driver *drv);
 audio_driver *audio_driver_lookup(const char *name);
 
+int audio_get_timer_ticks(void);
+int audio_get_timer_frequency(void);
+int audio_get_dac_frequency(void);
+
 void audio_pcm_init_info (struct audio_pcm_info *info, struct audsettings *as);
 void audio_pcm_info_clear_buf (struct audio_pcm_info *info, void *buf, int len);
 

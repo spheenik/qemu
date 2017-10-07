@@ -2097,3 +2097,15 @@ void AUD_set_volume_in (SWVoiceIn *sw, int mute, uint8_t lvol, uint8_t rvol)
         }
     }
 }
+
+int audio_get_timer_ticks() {
+    return (int) conf.period.ticks;
+}
+
+int audio_get_timer_frequency() {
+    return (int) (NANOSECONDS_PER_SECOND / conf.period.ticks);
+}
+
+int audio_get_dac_frequency() {
+    return conf.fixed_out.settings.freq;
+}
