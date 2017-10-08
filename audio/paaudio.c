@@ -291,19 +291,6 @@ fail:
 }
 
 
-static int64_t hob (int64_t num)
-{
-    if (!num)
-        return 0;
-
-    int ret = 1;
-
-    while (num >>= 1)
-        ret <<= 1;
-
-    return ret;
-}
-
 static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
                         void *drv_opaque)
 {
@@ -319,12 +306,11 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
 
     int64_t tlength = g->conf.tlength;
     if (tlength == 0) {
-        tlength = (frames_per_tick_x1000) / 500;
+        tlength = (frames_per_tick_x1000) / 400;
     }
     int64_t buflen = g->conf.buffer_size;
     if (buflen == 0) {
-        buflen = hob(frames_per_tick_x1000  / 125);
-        buflen = audio_MAX(HDA_BUFFER_SIZE, buflen); // must be at least HDA_BUFFER_SIZE bytes for HDA to work at all!
+        buflen = frames_per_tick_x1000  / 400;
     }
 
     float ms_per_frame = 1000.0f / as->freq;
