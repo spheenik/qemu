@@ -105,9 +105,9 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
     decr = samples;
     rpos = hw->rpos;
 
-    if (avail_bytes < max_bytes) {
-        dolog("avail: %d, wanted: %d \n", (int)avail_bytes, (int)max_bytes);
-    }
+//    if (avail_bytes < max_bytes) {
+//        dolog("avail: %d, wanted: %d \n", (int)avail_bytes, (int)max_bytes);
+//    }
 
     //dolog("TRANSFER avail: %d bytes, max %d bytes -> %d samples from %d\n", (int)avail_bytes, (int)max_bytes, samples, rpos);
 
@@ -319,7 +319,7 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
 
     int64_t tlength = g->conf.tlength;
     if (tlength == 0) {
-        tlength = (frames_per_tick_x1000 + 999) / 1000;
+        tlength = (frames_per_tick_x1000) / 500;
     }
     int64_t buflen = g->conf.buffer_size;
     if (buflen == 0) {
@@ -340,6 +340,8 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     dolog("tlength: %.2f ms (%"PRId64" frames)\n",
           tlength * ms_per_frame,
           tlength);
+
+    dolog("adjust latency: %s\n", g->conf.adjust_latency_out ? "yes" : "no");
 
     ss.format = audfmt_to_pa (as->fmt, as->endianness);
     ss.channels = as->nchannels;
