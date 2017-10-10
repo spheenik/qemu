@@ -1155,42 +1155,10 @@ static void audio_reset_timer (AudioState *s)
     }
 }
 
-
-static int64_t ref_ns = -1;
-static int64_t last_ns = -1;
-
 static void audio_timer (void *opaque)
 {
-    int64_t start_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    if (ref_ns == -1) {
-        ref_ns = start_ns - conf.period.ticks;
-        last_ns = ref_ns;
-    }
     audio_run ("timer");
-    int64_t end_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-
-
-    if ((end_ns - start_ns) > conf.period.ticks) {
-        dolog("audio timer after %"PRId64" us (deviation %"PRId64" us), took %"PRId64" us\n",
-              (start_ns - last_ns) / SCALE_US,
-              (start_ns - (ref_ns + conf.period.ticks)) / SCALE_US,
-              (end_ns - start_ns) / SCALE_US
-        );
-    }
-
-    last_ns = start_ns;
-
-    AudioState *s = opaque;
-
-    if (audio_is_timer_needed ()) {
-        ref_ns += conf.period.ticks;
-        timer_mod_anticipate_ns(s->ts, audio_MAX(ref_ns + conf.period.ticks, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 1));
-    }
-    else {
-        ref_ns = -1;
-        timer_del (s->ts);
-    }
-
+    audio_reset_timer (opaque);
 }
 
 /*
