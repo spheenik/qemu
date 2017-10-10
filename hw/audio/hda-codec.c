@@ -209,7 +209,9 @@ static void hda_audio_output_cb(void *opaque, int avail)
     int len;
     bool rc;
 
-    while (avail - sent >= sizeof(st->buf)) {
+    AUD_log ("XX", "Wanted: %d\n", avail);
+
+    while (avail - sent) {
         if (st->bpos == sizeof(st->buf)) {
             rc = hda_codec_xfer(&st->state->hda, st->stream, true,
                                 st->buf, sizeof(st->buf));
@@ -218,11 +220,11 @@ static void hda_audio_output_cb(void *opaque, int avail)
             }
             st->bpos = 0;
         }
-        len = AUD_write(st->voice.out, st->buf + st->bpos,
-                        sizeof(st->buf) - st->bpos);
+        int n = audio_MIN(avail - sent, sizeof(st->buf) - st->bpos);
+        len = AUD_write(st->voice.out, st->buf + st->bpos, n);
         st->bpos += len;
         sent += len;
-        if (st->bpos != sizeof(st->buf)) {
+        if (len != n) {
             break;
         }
     }
