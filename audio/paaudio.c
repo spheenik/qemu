@@ -87,6 +87,28 @@ static inline int PA_STREAM_IS_GOOD(pa_stream_state_t x)
 }
 #endif
 
+#define CHECK_SUCCESS_GOTO(c, rerror, expression, label)        \
+    do {                                                        \
+        if (!(expression)) {                                    \
+            *(rerror) = pa_context_errno ((c)->context);        \
+            goto label;                                         \
+        }                                                       \
+    } while (0);
+
+#define CHECK_DEAD_GOTO(c, stream, rerror, label)                       \
+    do {                                                                \
+        if (!(c)->context || !PA_CONTEXT_IS_GOOD (pa_context_get_state((c)->context)) || \
+            !(stream) || !PA_STREAM_IS_GOOD (pa_stream_get_state ((stream)))) { \
+            if (((c)->context && pa_context_get_state ((c)->context) == PA_CONTEXT_FAILED) || \
+                ((stream) && pa_stream_get_state ((stream)) == PA_STREAM_FAILED)) { \
+                *(rerror) = pa_context_errno ((c)->context);            \
+            } else {                                                    \
+                *(rerror) = PA_ERR_BADSTATE;                            \
+            }                                                           \
+            goto label;                                                 \
+        }                                                               \
+} while (0);
+
 static int qpa_run_out (HWVoiceOut *hw, int live)
 {
     PAVoiceOut *pa = (PAVoiceOut *) hw;
@@ -94,22 +116,26 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
     size_t avail_bytes, max_bytes;
     struct st_sample *src;
     void *pa_dst;
+    int error = 0;
+    int r;
+
+    decr = 0;
+    rpos = hw->rpos;
 
     pa_threaded_mainloop_lock (pa->g->mainloop);
+    CHECK_DEAD_GOTO (pa->g, pa->stream, &error, fail);
 
     avail_bytes = (size_t) live << hw->info.shift;
     max_bytes = pa_stream_writable_size(pa->stream);
+    CHECK_SUCCESS_GOTO(pa->g, &error, max_bytes != -1, fail);
 
     samples = (int)(audio_MIN (avail_bytes, max_bytes)) >> hw->info.shift;
-
-    decr = samples;
-    rpos = hw->rpos;
 
 //    if (avail_bytes < max_bytes) {
 //        dolog("avail: %d, wanted: %d \n", (int)avail_bytes, (int)max_bytes);
 //    }
 
-    //dolog("TRANSFER avail: %d bytes, max %d bytes -> %d samples from %d\n", (int)avail_bytes, (int)max_bytes, samples, rpos);
+//    dolog("TRANSFER avail: %d bytes, max %d bytes -> %d samples from %d\n", (int)avail_bytes, (int)max_bytes, samples, rpos);
 
     while (samples) {
         int left_till_end_samples = hw->samples - rpos;
@@ -118,28 +144,31 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
         size_t convert_bytes_wanted = (size_t) convert_samples << hw->info.shift;
         size_t convert_bytes = convert_bytes_wanted;
 
-        pa_stream_begin_write(pa->stream, &pa_dst, &convert_bytes);
-
-        if (convert_bytes != convert_bytes_wanted) {
-            dolog("    OOOPS wanted %d, got %d\n", (int)convert_bytes_wanted, (int)convert_bytes);
-        }
+        r = pa_stream_begin_write(pa->stream, &pa_dst, &convert_bytes);
+        CHECK_SUCCESS_GOTO(pa->g, &error, r == 0, fail);
+        CHECK_SUCCESS_GOTO(pa->g, &error, convert_bytes == convert_bytes_wanted, fail);
 
         src = hw->mix_buf + rpos;
         hw->clip (pa_dst, src, convert_samples);
 
-        pa_stream_write (pa->stream, pa_dst, convert_bytes, NULL, 0LL, PA_SEEK_RELATIVE);
+        r = pa_stream_write (pa->stream, pa_dst, convert_bytes, NULL, 0LL, PA_SEEK_RELATIVE);
+        CHECK_SUCCESS_GOTO(pa->g, &error, r >= 0, fail);
 
         rpos = (rpos + convert_samples) % hw->samples;
         samples -= convert_samples;
+        decr += convert_samples;
     }
 
+    bail:
     pa_threaded_mainloop_unlock (pa->g->mainloop);
 
-    //dolog("\n");
-
     hw->rpos = rpos;
-
     return decr;
+
+    fail:
+    qpa_logerr (error, "qpa_run_out failed\n");
+    goto bail;
+
 }
 
 static int qpa_write (SWVoiceOut *sw, void *buf, int len)
