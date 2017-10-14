@@ -182,6 +182,8 @@ struct HDAAudioState {
 
 #define dolog(fmt, ...) AUD_log("", fmt, ## __VA_ARGS__)
 
+#define MAX_CORR (SCALE_US * 100)
+
 static void hda_audio_input_timer(void *opaque) {
 
 #define B_SIZE sizeof(st->buf)
@@ -246,12 +248,16 @@ static void hda_audio_input_cb(void *opaque, int avail)
 
     int64_t to_transfer = audio_MIN(B_SIZE - (wpos - rpos), avail);
 
-//    int64_t overflow = wpos - rpos - to_transfer - (B_SIZE >> 3);
-//    if (overflow > 0) {
-//        int64_t corr = NANOSECONDS_PER_SECOND * overflow / (4 * st->as.freq);
-//        //dolog("CORR %"PRId64"\n", corr);
-//        atomic_fetch_add(&st->buft_start, corr);
-//    }
+
+    int64_t c = (wpos - rpos) + to_transfer - (B_SIZE >> 1);
+    int64_t corr = NANOSECONDS_PER_SECOND * c / (4 * st->as.freq);
+    if (corr > MAX_CORR) {
+        corr = MAX_CORR;
+    } else if (corr < -MAX_CORR) {
+        corr = -MAX_CORR;
+    }
+    //dolog("CORR %"PRId64"\n", -corr);
+    atomic_fetch_add(&st->buft_start, -corr);
 
     while (to_transfer) {
         uint32_t start = (uint32_t) (wpos & B_MASK);
@@ -334,12 +340,16 @@ static void hda_audio_output_cb(void *opaque, int avail)
 
     int64_t to_transfer = audio_MIN(wpos - rpos, avail);
 
-    int64_t overflow = wpos - rpos - to_transfer - (B_SIZE >> 3);
-    if (overflow > 0) {
-        int64_t corr = NANOSECONDS_PER_SECOND * overflow / (4 * st->as.freq);
-        //dolog("CORR %"PRId64"\n", corr);
-        atomic_fetch_add(&st->buft_start, corr);
+
+    int64_t c = (wpos - rpos) - to_transfer - (B_SIZE >> 1);
+    int64_t corr = NANOSECONDS_PER_SECOND * c / (4 * st->as.freq);
+    if (corr > MAX_CORR) {
+        corr = MAX_CORR;
+    } else if (corr < -MAX_CORR) {
+        corr = -MAX_CORR;
     }
+    //dolog("CORR %"PRId64"\n", corr);
+    atomic_fetch_add(&st->buft_start, corr);
 
     while (to_transfer) {
         uint32_t start = (uint32_t) (rpos & B_MASK);
