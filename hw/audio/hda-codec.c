@@ -180,6 +180,8 @@ struct HDAAudioState {
     bool     mixer;
 };
 
+#define dolog(fmt, ...) AUD_log("", fmt, ## __VA_ARGS__)
+
 static void hda_audio_input_timer(void *opaque) {
 
 #define B_SIZE sizeof(st->buf)
@@ -242,7 +244,7 @@ static void hda_audio_input_cb(void *opaque, int avail)
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
     int64_t rpos = atomic_fetch_add(&st->rpos, 0);
 
-    int64_t to_transfer = audio_MIN(wpos - rpos, avail);
+    int64_t to_transfer = audio_MIN(B_SIZE - (wpos - rpos), avail);
 
 //    int64_t overflow = wpos - rpos - to_transfer - (B_SIZE >> 3);
 //    if (overflow > 0) {
@@ -268,7 +270,6 @@ static void hda_audio_input_cb(void *opaque, int avail)
 }
 
 
-#define dolog(fmt, ...) AUD_log("XX", fmt, ## __VA_ARGS__)
 
 static void hda_audio_output_timer(void *opaque) {
 
