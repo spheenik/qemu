@@ -194,7 +194,8 @@ static inline int64_t hda_bytes_per_second(HDAAudioStream *st)
 
 static inline void hda_timer_sync_adjust(HDAAudioStream *st, int64_t target_pos)
 {
-    int64_t corr = NANOSECONDS_PER_SECOND * target_pos / hda_bytes_per_second(st);
+    int64_t corr =
+        NANOSECONDS_PER_SECOND * target_pos / hda_bytes_per_second(st);
     if (corr > MAX_CORR) {
         corr = MAX_CORR;
     } else if (corr < -MAX_CORR) {
@@ -213,11 +214,12 @@ static void hda_audio_input_timer(void *opaque)
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
     int64_t rpos = atomic_fetch_add(&st->rpos, 0);
 
-    int64_t wanted_rpos = hda_bytes_per_second(st) * (now - buft_start) / NANOSECONDS_PER_SECOND;
-    wanted_rpos &= -4; // IMPORTANT! clip to frames
+    int64_t wanted_rpos = hda_bytes_per_second(st) * (now - buft_start)
+                          / NANOSECONDS_PER_SECOND;
+    wanted_rpos &= -4; /* IMPORTANT! clip to frames */
 
     if (wanted_rpos <= rpos) {
-        // we already transmitted the data
+        /* we already transmitted the data */
         goto out_timer;
     }
 
@@ -225,7 +227,8 @@ static void hda_audio_input_timer(void *opaque)
     while (to_transfer) {
         uint32_t start = (rpos & B_MASK);
         uint32_t chunk = audio_MIN(B_SIZE - start, to_transfer);
-        int rc = hda_codec_xfer(&st->state->hda, st->stream, false, st->buf + start, chunk);
+        int rc = hda_codec_xfer(
+                &st->state->hda, st->stream, false, st->buf + start, chunk);
         if (!rc) {
             break;
         }
@@ -275,11 +278,12 @@ static void hda_audio_output_timer(void *opaque)
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
     int64_t rpos = atomic_fetch_add(&st->rpos, 0);
 
-    int64_t wanted_wpos = hda_bytes_per_second(st) * (now - buft_start) / NANOSECONDS_PER_SECOND;
-    wanted_wpos &= -4; // IMPORTANT! clip to frames
+    int64_t wanted_wpos = hda_bytes_per_second(st) * (now - buft_start)
+                          / NANOSECONDS_PER_SECOND;
+    wanted_wpos &= -4; /* IMPORTANT! clip to frames */
 
     if (wanted_wpos <= wpos) {
-        // we already received the data
+        /* we already received the data */
         goto out_timer;
     }
 
@@ -287,7 +291,8 @@ static void hda_audio_output_timer(void *opaque)
     while (to_transfer) {
         uint32_t start = (wpos & B_MASK);
         uint32_t chunk = audio_MIN(B_SIZE - start, to_transfer);
-        int rc = hda_codec_xfer(&st->state->hda, st->stream, true, st->buf + start, chunk);
+        int rc = hda_codec_xfer(
+                &st->state->hda, st->stream, true, st->buf + start, chunk);
         if (!rc) {
             break;
         }
