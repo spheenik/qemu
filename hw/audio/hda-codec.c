@@ -693,7 +693,7 @@ static void hda_audio_reset(DeviceState *dev)
 
 static const VMStateDescription vmstate_hda_audio_stream = {
     .name = "hda-audio-stream",
-    .version_id = 2,
+    .version_id = 1,
     .fields = (VMStateField[]) {
         VMSTATE_UINT32(stream, HDAAudioStream),
         VMSTATE_UINT32(channel, HDAAudioStream),
