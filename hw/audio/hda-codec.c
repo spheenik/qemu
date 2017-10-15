@@ -127,6 +127,7 @@ static void hda_codec_parse_fmt(uint32_t format, struct audsettings *as)
 #define   PARAM nomixemu
 #include  "hda-codec-common.h"
 
+#define HDA_TIMER_TICKS (SCALE_MS)
 #define MAX_CORR (SCALE_US * 100)
 #define B_SIZE sizeof(st->buf)
 #define B_MASK (sizeof(st->buf) - 1)
