@@ -13,6 +13,7 @@ typedef struct {
     int buffer_size_in;
     int tlength;
     int fragsize;
+    int maxlength_in;
     int adjust_latency_out;
     int adjust_latency_in;
     char *server;
@@ -111,18 +112,19 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
     struct st_sample *src;
     void *pa_dst;
     int error = 0;
+    int *rerror = &error;
     int r;
 
     decr = 0;
     rpos = hw->rpos;
 
     pa_threaded_mainloop_lock(pa->g->mainloop);
-    CHECK_DEAD_GOTO(pa->g, pa->stream, &error, fail);
+    CHECK_DEAD_GOTO(pa->g, pa->stream, rerror, fail);
 
     avail_bytes = (size_t) live << hw->info.shift;
 
     max_bytes = pa_stream_writable_size(pa->stream);
-    CHECK_SUCCESS_GOTO(pa->g, &error, max_bytes != -1, fail);
+    CHECK_SUCCESS_GOTO(pa->g, rerror, max_bytes != -1, fail);
 
     samples = (int)(audio_MIN(avail_bytes, max_bytes)) >> hw->info.shift;
     while (samples) {
@@ -133,14 +135,14 @@ static int qpa_run_out (HWVoiceOut *hw, int live)
         size_t convert_bytes = convert_bytes_wanted;
 
         r = pa_stream_begin_write(pa->stream, &pa_dst, &convert_bytes);
-        CHECK_SUCCESS_GOTO(pa->g, &error, r == 0, fail);
+        CHECK_SUCCESS_GOTO(pa->g, rerror, r == 0, fail);
         CHECK_SUCCESS_GOTO(pa->g, (int *)0, convert_bytes == convert_bytes_wanted, fail);
 
         src = hw->mix_buf + rpos;
         hw->clip(pa_dst, src, convert_samples);
 
         r = pa_stream_write(pa->stream, pa_dst, convert_bytes, NULL, 0LL, PA_SEEK_RELATIVE);
-        CHECK_SUCCESS_GOTO(pa->g, &error, r >= 0, fail);
+        CHECK_SUCCESS_GOTO(pa->g, rerror, r >= 0, fail);
 
         rpos = (rpos + convert_samples) % hw->samples;
         samples -= convert_samples;
@@ -169,13 +171,14 @@ static int qpa_run_in (HWVoiceIn *hw)
     int wpos, incr;
     char *pa_src;
     int error = 0;
+    int *rerror = &error;
     int r;
     size_t pa_avail;
     incr = 0;
     wpos = hw->wpos;
 
     pa_threaded_mainloop_lock(pa->g->mainloop);
-    CHECK_DEAD_GOTO(pa->g, pa->stream, &error, fail);
+    CHECK_DEAD_GOTO(pa->g, pa->stream, rerror, fail);
 
     size_t bytes_wanted = ((unsigned int)(hw->samples - audio_pcm_hw_get_live_in(hw)) << hw->info.shift);
     if (bytes_wanted == 0) {
@@ -191,7 +194,7 @@ static int qpa_run_in (HWVoiceIn *hw)
 
     while (bytes_wanted) {
         r = pa_stream_peek(pa->stream, (const void **)&pa_src, &pa_avail);
-        CHECK_SUCCESS_GOTO(pa->g, &error, r == 0, fail);
+        CHECK_SUCCESS_GOTO(pa->g, rerror, r == 0, fail);
 
         if (pa_avail == 0 || pa_avail > bytes_wanted) {
             break;
@@ -209,7 +212,7 @@ static int qpa_run_in (HWVoiceIn *hw)
         }
 
         r = pa_stream_drop(pa->stream);
-        CHECK_SUCCESS_GOTO(pa->g, &error, r == 0, fail);
+        CHECK_SUCCESS_GOTO(pa->g, rerror, r == 0, fail);
     }
 
 bail:
@@ -458,6 +461,10 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
     if (buflen == 0) {
         buflen = frames_per_tick_x1000  / 400;
     }
+    int64_t maxlength = g->conf.maxlength_in;
+    if (maxlength == 0) {
+        maxlength = fragsize * 4;
+    }
 
     float ms_per_frame = 1000.0f / as->freq;
 
@@ -469,6 +476,10 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
           fragsize * ms_per_frame,
           fragsize);
 
+    dolog("IN maxlength: %.2f ms (%"PRId64" frames)\n",
+          maxlength * ms_per_frame,
+          maxlength);
+
     dolog("IN adjust latency: %s\n", g->conf.adjust_latency_in ? "yes" : "no");
 
     pa->ss.format = audfmt_to_pa (as->fmt, as->endianness);
@@ -476,7 +487,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
     pa->ss.rate = as->freq;
 
     pa->ba.fragsize = fragsize * pa_frame_size (&pa->ss);
-    pa->ba.maxlength = pa->ba.fragsize * 4;
+    pa->ba.maxlength = maxlength * pa_frame_size (&pa->ss);
     pa->ba.minreq = -1;
     pa->ba.prebuf = -1;
 
@@ -746,6 +757,12 @@ struct audio_option qpa_options[] = {
         .tag   = AUD_OPT_INT,
         .valp  = &glob_conf.fragsize,
         .descr = "fragment length of recording device in frames"
+    },
+    {
+        .name  = "MAXLENGTH_IN",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.maxlength_in,
+        .descr = "maximum length of PA recording buffer in frames"
     },
     {
         .name  = "ADJUST_LATENCY_OUT",
