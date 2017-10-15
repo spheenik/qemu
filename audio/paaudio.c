@@ -233,7 +233,7 @@ static int qpa_read (SWVoiceIn *sw, void *buf, int len)
 
 static pa_sample_format_t audfmt_to_pa (audfmt_e afmt, int endianness)
 {
-    pa_sample_format_t format;
+    int format;
 
     switch (afmt) {
     case AUD_FMT_S8:
