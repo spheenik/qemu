@@ -2098,6 +2098,7 @@ void AUD_set_volume_in (SWVoiceIn *sw, int mute, uint8_t lvol, uint8_t rvol)
     }
 }
 
-int64_t audio_get_timer_ticks(void) {
+int64_t audio_get_timer_ticks(void)
+{
     return conf.period.ticks;
 }
