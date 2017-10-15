@@ -162,7 +162,7 @@ struct HDAAudioStream {
     } voice;
     uint8_t compat_buf[HDA_BUFFER_SIZE];
     uint32_t compat_bpos;
-    uint8_t buf[8192]; // size must be power of two
+    uint8_t buf[8192]; /* size must be power of two */
     int64_t rpos;
     int64_t wpos;
     QEMUTimer *buft;
