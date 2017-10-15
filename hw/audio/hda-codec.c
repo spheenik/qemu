@@ -159,6 +159,8 @@ struct HDAAudioStream {
         SWVoiceIn *in;
         SWVoiceOut *out;
     } voice;
+    uint8_t compat_buf[HDA_BUFFER_SIZE];
+    uint32_t compat_bpos;
     uint8_t buf[8192]; // size must be power of two
     int64_t rpos;
     int64_t wpos;
@@ -690,7 +692,7 @@ static void hda_audio_reset(DeviceState *dev)
 
 static const VMStateDescription vmstate_hda_audio_stream = {
     .name = "hda-audio-stream",
-    .version_id = 1,
+    .version_id = 2,
     .fields = (VMStateField[]) {
         VMSTATE_UINT32(stream, HDAAudioStream),
         VMSTATE_UINT32(channel, HDAAudioStream),
@@ -699,9 +701,8 @@ static const VMStateDescription vmstate_hda_audio_stream = {
         VMSTATE_UINT32(gain_right, HDAAudioStream),
         VMSTATE_BOOL(mute_left, HDAAudioStream),
         VMSTATE_BOOL(mute_right, HDAAudioStream),
-        VMSTATE_BUFFER(buf, HDAAudioStream),
-        VMSTATE_INT64(rpos, HDAAudioStream),
-        VMSTATE_INT64(wpos, HDAAudioStream),
+        VMSTATE_UINT32(compat_bpos, HDAAudioStream),
+        VMSTATE_BUFFER(compat_buf, HDAAudioStream),
         VMSTATE_END_OF_LIST()
     }
 };
