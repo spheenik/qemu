@@ -6,6 +6,7 @@
 #include <pulse/pulseaudio.h>
 
 #define AUDIO_CAP "pulseaudio"
+#define DEBUG
 #include "audio_int.h"
 
 typedef struct {
