@@ -127,6 +127,10 @@ static void hda_codec_parse_fmt(uint32_t format, struct audsettings *as)
 #define   PARAM nomixemu
 #include  "hda-codec-common.h"
 
+#define MAX_CORR (SCALE_US * 100)
+#define B_SIZE sizeof(st->buf)
+#define B_MASK (sizeof(st->buf) - 1)
+
 /* -------------------------------------------------------------------------- */
 
 static const char *fmt2name[] = {
@@ -155,7 +159,7 @@ struct HDAAudioStream {
         SWVoiceIn *in;
         SWVoiceOut *out;
     } voice;
-    uint8_t buf[8192];
+    uint8_t buf[8192]; // size must be power of two
     int64_t rpos;
     int64_t wpos;
     QEMUTimer *buft;
@@ -180,15 +184,24 @@ struct HDAAudioState {
     bool     mixer;
 };
 
-#define dolog(fmt, ...) AUD_log("", fmt, ## __VA_ARGS__)
+static inline int64_t hda_bytes_per_second(HDAAudioStream *st)
+{
+    return 2 * st->as.nchannels * st->as.freq;
+}
 
-#define MAX_CORR (SCALE_US * 100)
+static inline void hda_timer_sync_adjust(HDAAudioStream *st, int64_t target_pos)
+{
+    int64_t corr = NANOSECONDS_PER_SECOND * target_pos / hda_bytes_per_second(st);
+    if (corr > MAX_CORR) {
+        corr = MAX_CORR;
+    } else if (corr < -MAX_CORR) {
+        corr = -MAX_CORR;
+    }
+    atomic_fetch_add(&st->buft_start, corr);
+}
 
-static void hda_audio_input_timer(void *opaque) {
-
-#define B_SIZE sizeof(st->buf)
-#define B_MASK (sizeof(st->buf) - 1)
-
+static void hda_audio_input_timer(void *opaque)
+{
     HDAAudioStream *st = opaque;
 
     int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -197,7 +210,7 @@ static void hda_audio_input_timer(void *opaque) {
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
     int64_t rpos = atomic_fetch_add(&st->rpos, 0);
 
-    int64_t wanted_rpos = (st->as.freq * 4 * (now - buft_start)) / NANOSECONDS_PER_SECOND;
+    int64_t wanted_rpos = hda_bytes_per_second(st) * (now - buft_start) / NANOSECONDS_PER_SECOND;
     wanted_rpos &= -4; // IMPORTANT! clip to frames
 
     if (wanted_rpos <= rpos) {
@@ -205,14 +218,7 @@ static void hda_audio_input_timer(void *opaque) {
         goto out_timer;
     }
 
-    if (wpos - rpos >= B_SIZE) {
-        goto out_timer;
-    }
-
-    //dolog("%"PRId64"\n", wpos - rpos);
-
-    //dolog("rpos: %"PRId64", wpos: %"PRId64", wanted: %"PRId64"\n", rpos, wpos, wanted_wpos);
-    int64_t to_transfer = audio_MIN(B_SIZE - (wpos - rpos), wanted_rpos - rpos);
+    int64_t to_transfer = audio_MIN(wpos - rpos, wanted_rpos - rpos);
     while (to_transfer) {
         uint32_t start = (rpos & B_MASK);
         uint32_t chunk = audio_MIN(B_SIZE - start, to_transfer);
@@ -225,22 +231,15 @@ static void hda_audio_input_timer(void *opaque) {
         atomic_fetch_add(&st->rpos, chunk);
     }
 
-#undef B_MASK
-#undef B_SIZE
-
-    out_timer:
+out_timer:
 
     if (st->running) {
         timer_mod_anticipate_ns(st->buft, now + HDA_TIMER_TICKS);
     }
 }
 
-
 static void hda_audio_input_cb(void *opaque, int avail)
 {
-#define B_SIZE sizeof(st->buf)
-#define B_MASK (sizeof(st->buf) - 1)
-
     HDAAudioStream *st = opaque;
 
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
@@ -248,16 +247,7 @@ static void hda_audio_input_cb(void *opaque, int avail)
 
     int64_t to_transfer = audio_MIN(B_SIZE - (wpos - rpos), avail);
 
-
-    int64_t c = (wpos - rpos) + to_transfer - (B_SIZE >> 1);
-    int64_t corr = NANOSECONDS_PER_SECOND * c / (4 * st->as.freq);
-    if (corr > MAX_CORR) {
-        corr = MAX_CORR;
-    } else if (corr < -MAX_CORR) {
-        corr = -MAX_CORR;
-    }
-    //dolog("CORR %"PRId64"\n", -corr);
-    atomic_fetch_add(&st->buft_start, -corr);
+    hda_timer_sync_adjust(st, -((wpos - rpos) + to_transfer - (B_SIZE >> 1)));
 
     while (to_transfer) {
         uint32_t start = (uint32_t) (wpos & B_MASK);
@@ -270,18 +260,10 @@ static void hda_audio_input_cb(void *opaque, int avail)
             break;
         }
     }
-
-#undef B_MASK
-#undef B_SIZE
 }
 
-
-
-static void hda_audio_output_timer(void *opaque) {
-
-#define B_SIZE sizeof(st->buf)
-#define B_MASK (sizeof(st->buf) - 1)
-
+static void hda_audio_output_timer(void *opaque)
+{
     HDAAudioStream *st = opaque;
 
     int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -290,7 +272,7 @@ static void hda_audio_output_timer(void *opaque) {
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
     int64_t rpos = atomic_fetch_add(&st->rpos, 0);
 
-    int64_t wanted_wpos = (st->as.freq * 4 * (now - buft_start)) / NANOSECONDS_PER_SECOND;
+    int64_t wanted_wpos = hda_bytes_per_second(st) * (now - buft_start) / NANOSECONDS_PER_SECOND;
     wanted_wpos &= -4; // IMPORTANT! clip to frames
 
     if (wanted_wpos <= wpos) {
@@ -298,13 +280,6 @@ static void hda_audio_output_timer(void *opaque) {
         goto out_timer;
     }
 
-    if (wpos - rpos >= B_SIZE) {
-        goto out_timer;
-    }
-
-    //dolog("%"PRId64"\n", wpos - rpos);
-
-    //dolog("rpos: %"PRId64", wpos: %"PRId64", wanted: %"PRId64"\n", rpos, wpos, wanted_wpos);
     int64_t to_transfer = audio_MIN(B_SIZE - (wpos - rpos), wanted_wpos - wpos);
     while (to_transfer) {
         uint32_t start = (wpos & B_MASK);
@@ -318,10 +293,7 @@ static void hda_audio_output_timer(void *opaque) {
         atomic_fetch_add(&st->wpos, chunk);
     }
 
-#undef B_MASK
-#undef B_SIZE
-
-    out_timer:
+out_timer:
 
     if (st->running) {
         timer_mod_anticipate_ns(st->buft, now + HDA_TIMER_TICKS);
@@ -330,9 +302,6 @@ static void hda_audio_output_timer(void *opaque) {
 
 static void hda_audio_output_cb(void *opaque, int avail)
 {
-#define B_SIZE sizeof(st->buf)
-#define B_MASK (sizeof(st->buf) - 1)
-
     HDAAudioStream *st = opaque;
 
     int64_t wpos = atomic_fetch_add(&st->wpos, 0);
@@ -340,16 +309,7 @@ static void hda_audio_output_cb(void *opaque, int avail)
 
     int64_t to_transfer = audio_MIN(wpos - rpos, avail);
 
-
-    int64_t c = (wpos - rpos) - to_transfer - (B_SIZE >> 1);
-    int64_t corr = NANOSECONDS_PER_SECOND * c / (4 * st->as.freq);
-    if (corr > MAX_CORR) {
-        corr = MAX_CORR;
-    } else if (corr < -MAX_CORR) {
-        corr = -MAX_CORR;
-    }
-    //dolog("CORR %"PRId64"\n", corr);
-    atomic_fetch_add(&st->buft_start, corr);
+    hda_timer_sync_adjust(st, (wpos - rpos) - to_transfer - (B_SIZE >> 1));
 
     while (to_transfer) {
         uint32_t start = (uint32_t) (rpos & B_MASK);
@@ -362,9 +322,6 @@ static void hda_audio_output_cb(void *opaque, int avail)
             break;
         }
     }
-
-#undef B_MASK
-#undef B_SIZE
 }
 
 static void hda_audio_set_running(HDAAudioStream *st, bool running)
@@ -376,7 +333,8 @@ static void hda_audio_set_running(HDAAudioStream *st, bool running)
         return;
     }
     st->running = running;
-
+    dprint(st->state, 1, "%s: %s (stream %d)\n", st->node->name,
+           st->running ? "on" : "off", st->stream);
     if (running) {
         int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
         st->rpos = 0;
@@ -384,11 +342,8 @@ static void hda_audio_set_running(HDAAudioStream *st, bool running)
         st->buft_start = now;
         timer_mod_anticipate_ns(st->buft, now + HDA_TIMER_TICKS);
     } else {
-        timer_del (st->buft);
+        timer_del(st->buft);
     }
-
-    dprint(st->state, 1, "%s: %s (stream %d)\n", st->node->name,
-           st->running ? "on" : "off", st->stream);
     if (st->output) {
         AUD_set_active_out(st->voice.out, st->running);
     } else {
@@ -683,8 +638,8 @@ static void hda_audio_exit(HDACodecDevice *hda)
         if (st->node == NULL) {
             continue;
         }
+        timer_del(st->buft);
         if (st->output) {
-            timer_del (st->buft);
             AUD_close_out(&a->card, st->voice.out);
         } else {
             AUD_close_in(&a->card, st->voice.in);
