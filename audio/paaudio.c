@@ -35,10 +35,8 @@ typedef struct {
     int buffer_size;
     int tlength;
     int fragsize;
-#ifdef PA_STREAM_ADJUST_LATENCY
     int adjust_latency_out;
     int adjust_latency_in;
-#endif
     char *server;
     char *sink;
     char *source;
@@ -386,16 +384,12 @@ static pa_stream *qpa_simple_new (
     if (dir == PA_STREAM_PLAYBACK) {
         r = pa_stream_connect_playback (stream, dev, attr,
                                         PA_STREAM_INTERPOLATE_TIMING
-#ifdef PA_STREAM_ADJUST_LATENCY
                                         | (g->conf.adjust_latency_out ? PA_STREAM_ADJUST_LATENCY : 0)
-#endif
                                         |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
         r = pa_stream_connect_record (stream, dev, attr,
                                       PA_STREAM_INTERPOLATE_TIMING
-#ifdef PA_STREAM_ADJUST_LATENCY
                                       | (g->conf.adjust_latency_in ? PA_STREAM_ADJUST_LATENCY : 0)
-#endif
                                       |PA_STREAM_AUTO_TIMING_UPDATE);
     }
 
@@ -796,7 +790,6 @@ struct audio_option qpa_options[] = {
         .valp  = &glob_conf.fragsize,
         .descr = "fragment length of recording device in frames"
     },
-#ifdef PA_STREAM_ADJUST_LATENCY
     {
         .name  = "ADJUST_LATENCY_OUT",
         .tag   = AUD_OPT_BOOL,
@@ -809,7 +802,6 @@ struct audio_option qpa_options[] = {
         .valp  = &glob_conf.adjust_latency_in,
         .descr = "let PA adjust latency for recording device"
     },
-#endif
     {
         .name  = "SERVER",
         .tag   = AUD_OPT_STR,
