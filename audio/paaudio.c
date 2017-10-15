@@ -390,21 +390,19 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
         buflen = frames_per_tick_x1000  / 400;
     }
 
-    float ms_per_frame = 1000.0f / as->freq;
-
-    dolog("tick duration: %.2f ms (%.3f frames)\n",
-          ((float) timer_tick_duration) / SCALE_MS,
+    ldebug("tick duration: %.2f ms (%.3f frames)\n",
+          ((float)timer_tick_duration) / SCALE_MS,
           (float)frames_per_tick_x1000 / 1000.0f);
 
-    dolog("OUT internal buffer: %.2f ms (%"PRId64" frames)\n",
-          buflen * ms_per_frame,
+    ldebug("OUT internal buffer: %.2f ms (%"PRId64" frames)\n",
+          buflen * (1000.0f / as->freq),
           buflen);
 
-    dolog("OUT tlength: %.2f ms (%"PRId64" frames)\n",
-          tlength * ms_per_frame,
+    ldebug("OUT tlength: %.2f ms (%"PRId64" frames)\n",
+          tlength * (1000.0f / as->freq),
           tlength);
 
-    dolog("OUT adjust latency: %s\n", g->conf.adjust_latency_out ? "yes" : "no");
+    ldebug("OUT adjust latency: %s\n", g->conf.adjust_latency_out ? "yes" : "no");
 
     pa->ss.format = audfmt_to_pa (as->fmt, as->endianness);
     pa->ss.channels = as->nchannels;
@@ -466,21 +464,19 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
         maxlength = fragsize * 4;
     }
 
-    float ms_per_frame = 1000.0f / as->freq;
-
-    dolog("IN internal buffer: %.2f ms (%"PRId64" frames)\n",
-          buflen * ms_per_frame,
+    ldebug("IN internal buffer: %.2f ms (%"PRId64" frames)\n",
+          buflen * (1000.0f / as->freq),
           buflen);
 
-    dolog("IN fragsize: %.2f ms (%"PRId64" frames)\n",
-          fragsize * ms_per_frame,
+    ldebug("IN fragsize: %.2f ms (%"PRId64" frames)\n",
+          fragsize * (1000.0f / as->freq),
           fragsize);
 
-    dolog("IN maxlength: %.2f ms (%"PRId64" frames)\n",
-          maxlength * ms_per_frame,
+    ldebug("IN maxlength: %.2f ms (%"PRId64" frames)\n",
+          maxlength * (1000.0f / as->freq),
           maxlength);
 
-    dolog("IN adjust latency: %s\n", g->conf.adjust_latency_in ? "yes" : "no");
+    ldebug("IN adjust latency: %s\n", g->conf.adjust_latency_in ? "yes" : "no");
 
     pa->ss.format = audfmt_to_pa (as->fmt, as->endianness);
     pa->ss.channels = as->nchannels;
