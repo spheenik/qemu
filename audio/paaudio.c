@@ -128,20 +128,19 @@ static int qpa_run_out(HWVoiceOut *hw, int live)
 
     samples = (int)(audio_MIN(avail_bytes, max_bytes)) >> hw->info.shift;
     while (samples) {
-        int left_till_end_samples = hw->samples - rpos;
+        int convert_samples = audio_MIN(samples, hw->samples - rpos);
+        size_t b_wanted = (size_t) convert_samples << hw->info.shift;
+        size_t b_effective = b_wanted;
 
-        int convert_samples = audio_MIN(samples, left_till_end_samples);
-        size_t convert_bytes_wanted = (size_t) convert_samples << hw->info.shift;
-        size_t convert_bytes = convert_bytes_wanted;
-
-        r = pa_stream_begin_write(pa->stream, &pa_dst, &convert_bytes);
+        r = pa_stream_begin_write(pa->stream, &pa_dst, &b_effective);
         CHECK_SUCCESS_GOTO(pa->g, rerror, r == 0, fail);
-        CHECK_SUCCESS_GOTO(pa->g, (int *)0, convert_bytes == convert_bytes_wanted, fail);
+        CHECK_SUCCESS_GOTO(pa->g, (int *)0, b_effective == b_wanted, fail);
 
         src = hw->mix_buf + rpos;
         hw->clip(pa_dst, src, convert_samples);
 
-        r = pa_stream_write(pa->stream, pa_dst, convert_bytes, NULL, 0LL, PA_SEEK_RELATIVE);
+        r = pa_stream_write(pa->stream, pa_dst, b_effective,
+                            NULL, 0LL, PA_SEEK_RELATIVE);
         CHECK_SUCCESS_GOTO(pa->g, rerror, r >= 0, fail);
 
         rpos = (rpos + convert_samples) % hw->samples;
@@ -180,7 +179,9 @@ static int qpa_run_in(HWVoiceIn *hw)
     pa_threaded_mainloop_lock(pa->g->mainloop);
     CHECK_DEAD_GOTO(pa->g, pa->stream, rerror, fail);
 
-    size_t bytes_wanted = ((unsigned int)(hw->samples - audio_pcm_hw_get_live_in(hw)) << hw->info.shift);
+    size_t bytes_wanted = ((unsigned int)
+            (hw->samples - audio_pcm_hw_get_live_in(hw)) << hw->info.shift);
+
     if (bytes_wanted == 0) {
         /* no room */
         goto bail;
@@ -203,7 +204,8 @@ static int qpa_run_in(HWVoiceIn *hw)
         bytes_wanted -= pa_avail;
 
         while (pa_avail) {
-            int chunk = audio_MIN((int)(pa_avail >> hw->info.shift), hw->samples - wpos);
+            int chunk = audio_MIN(
+                    (int)(pa_avail >> hw->info.shift), hw->samples - wpos);
             hw->conv(hw->conv_buf + wpos, pa_src, chunk);
             wpos = (wpos + chunk) % hw->samples;
             pa_src += chunk << hw->info.shift;
@@ -339,15 +341,15 @@ static pa_stream *qpa_simple_new (
     pa_stream_set_state_callback (stream, stream_state_cb, g);
 
     if (dir == PA_STREAM_PLAYBACK) {
-        r = pa_stream_connect_playback (stream, dev, attr,
-                                        PA_STREAM_INTERPOLATE_TIMING
-                                        | (g->conf.adjust_latency_out ? PA_STREAM_ADJUST_LATENCY : 0)
-                                        |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
+        r = pa_stream_connect_playback(stream, dev, attr,
+                PA_STREAM_INTERPOLATE_TIMING
+                | (g->conf.adjust_latency_out ? PA_STREAM_ADJUST_LATENCY : 0)
+                |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
-        r = pa_stream_connect_record (stream, dev, attr,
-                                      PA_STREAM_INTERPOLATE_TIMING
-                                      | (g->conf.adjust_latency_in ? PA_STREAM_ADJUST_LATENCY : 0)
-                                      |PA_STREAM_AUTO_TIMING_UPDATE);
+        r = pa_stream_connect_record(stream, dev, attr,
+                PA_STREAM_INTERPOLATE_TIMING
+                | (g->conf.adjust_latency_in ? PA_STREAM_ADJUST_LATENCY : 0)
+                |PA_STREAM_AUTO_TIMING_UPDATE);
     }
 
     if (r < 0) {
@@ -378,8 +380,10 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     PAVoiceOut *pa = (PAVoiceOut *) hw;
     paaudio *g = pa->g = drv_opaque;
 
-    int64_t timer_tick_duration = audio_MAX(audio_get_timer_ticks(), 1 * SCALE_MS);
-    int64_t frames_per_tick_x1000 = ((timer_tick_duration * as->freq * 1000LL) / NANOSECONDS_PER_SECOND);
+    int64_t timer_tick_duration =
+        audio_MAX(audio_get_timer_ticks(), 1 * SCALE_MS);
+    int64_t frames_per_tick_x1000 =
+        ((timer_tick_duration * as->freq * 1000LL) / NANOSECONDS_PER_SECOND);
 
     int64_t tlength = g->conf.tlength;
     if (tlength == 0) {
@@ -402,7 +406,8 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
            tlength * (1000.0f / as->freq),
            tlength);
 
-    ldebug("OUT adjust latency: %s\n", g->conf.adjust_latency_out ? "yes" : "no");
+    ldebug("OUT adjust latency: %s\n",
+           g->conf.adjust_latency_out ? "yes" : "no");
 
     pa->ss.format = audfmt_to_pa(as->fmt, as->endianness);
     pa->ss.channels = as->nchannels;
@@ -448,8 +453,10 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
     PAVoiceIn *pa = (PAVoiceIn *) hw;
     paaudio *g = pa->g = drv_opaque;
 
-    int64_t timer_tick_duration = audio_MAX(audio_get_timer_ticks(), 1 * SCALE_MS);
-    int64_t frames_per_tick_x1000 = ((timer_tick_duration * as->freq * 1000LL) / NANOSECONDS_PER_SECOND);
+    int64_t timer_tick_duration =
+        audio_MAX(audio_get_timer_ticks(), 1 * SCALE_MS);
+    int64_t frames_per_tick_x1000 =
+        ((timer_tick_duration * as->freq * 1000LL) / NANOSECONDS_PER_SECOND);
 
     int64_t fragsize = g->conf.fragsize;
     if (fragsize == 0) {
@@ -476,7 +483,8 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
            maxlength * (1000.0f / as->freq),
            maxlength);
 
-    ldebug("IN adjust latency: %s\n", g->conf.adjust_latency_in ? "yes" : "no");
+    ldebug("IN adjust latency: %s\n",
+           g->conf.adjust_latency_in ? "yes" : "no");
 
     pa->ss.format = audfmt_to_pa(as->fmt, as->endianness);
     pa->ss.channels = as->nchannels;
