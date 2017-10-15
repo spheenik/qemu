@@ -345,12 +345,12 @@ static pa_stream *qpa_simple_new (
         r = pa_stream_connect_playback(stream, dev, attr,
                 PA_STREAM_INTERPOLATE_TIMING
                 | (g->conf.adjust_latency_out ? PA_STREAM_ADJUST_LATENCY : 0)
-                |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
+                | PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
     } else {
         r = pa_stream_connect_record(stream, dev, attr,
                 PA_STREAM_INTERPOLATE_TIMING
                 | (g->conf.adjust_latency_in ? PA_STREAM_ADJUST_LATENCY : 0)
-                |PA_STREAM_AUTO_TIMING_UPDATE);
+                | PA_STREAM_AUTO_TIMING_UPDATE);
     }
 
     if (r < 0) {
@@ -414,7 +414,7 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
     pa->ss.channels = as->nchannels;
     pa->ss.rate = as->freq;
 
-    pa->ba.tlength = tlength * pa_frame_size (&pa->ss);
+    pa->ba.tlength = tlength * pa_frame_size(&pa->ss);
     pa->ba.maxlength = -1;
     pa->ba.minreq = -1;
     pa->ba.prebuf = -1;
