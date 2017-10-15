@@ -154,7 +154,7 @@ static int qpa_run_out(HWVoiceOut *hw, int live)
     hw->rpos = rpos;
     return decr;
 
-    fail:
+fail:
     qpa_logerr(error, "qpa_run_out failed\n");
     goto bail;
 }
@@ -217,13 +217,13 @@ static int qpa_run_in(HWVoiceIn *hw)
         CHECK_SUCCESS_GOTO(pa->g, rerror, r == 0, fail);
     }
 
-    bail:
+bail:
     pa_threaded_mainloop_unlock(pa->g->mainloop);
 
     hw->wpos = wpos;
     return incr;
 
-    fail:
+fail:
     qpa_logerr(error, "qpa_run_in failed\n");
     goto bail;
 }
@@ -238,22 +238,22 @@ static pa_sample_format_t audfmt_to_pa (audfmt_e afmt, int endianness)
     int format;
 
     switch (afmt) {
-        case AUD_FMT_S8:
-        case AUD_FMT_U8:
-            format = PA_SAMPLE_U8;
-            break;
-        case AUD_FMT_S16:
-        case AUD_FMT_U16:
-            format = endianness ? PA_SAMPLE_S16BE : PA_SAMPLE_S16LE;
-            break;
-        case AUD_FMT_S32:
-        case AUD_FMT_U32:
-            format = endianness ? PA_SAMPLE_S32BE : PA_SAMPLE_S32LE;
-            break;
-        default:
-            dolog ("Internal logic error: Bad audio format %d\n", afmt);
-            format = PA_SAMPLE_U8;
-            break;
+    case AUD_FMT_S8:
+    case AUD_FMT_U8:
+        format = PA_SAMPLE_U8;
+        break;
+    case AUD_FMT_S16:
+    case AUD_FMT_U16:
+        format = endianness ? PA_SAMPLE_S16BE : PA_SAMPLE_S16LE;
+        break;
+    case AUD_FMT_S32:
+    case AUD_FMT_U32:
+        format = endianness ? PA_SAMPLE_S32BE : PA_SAMPLE_S32LE;
+        break;
+    default:
+        dolog ("Internal logic error: Bad audio format %d\n", afmt);
+        format = PA_SAMPLE_U8;
+        break;
     }
     return format;
 }
@@ -261,23 +261,23 @@ static pa_sample_format_t audfmt_to_pa (audfmt_e afmt, int endianness)
 static audfmt_e pa_to_audfmt (pa_sample_format_t fmt, int *endianness)
 {
     switch (fmt) {
-        case PA_SAMPLE_U8:
-            return AUD_FMT_U8;
-        case PA_SAMPLE_S16BE:
-            *endianness = 1;
-            return AUD_FMT_S16;
-        case PA_SAMPLE_S16LE:
-            *endianness = 0;
-            return AUD_FMT_S16;
-        case PA_SAMPLE_S32BE:
-            *endianness = 1;
-            return AUD_FMT_S32;
-        case PA_SAMPLE_S32LE:
-            *endianness = 0;
-            return AUD_FMT_S32;
-        default:
-            dolog ("Internal logic error: Bad pa_sample_format %d\n", fmt);
-            return AUD_FMT_U8;
+    case PA_SAMPLE_U8:
+        return AUD_FMT_U8;
+    case PA_SAMPLE_S16BE:
+        *endianness = 1;
+        return AUD_FMT_S16;
+    case PA_SAMPLE_S16LE:
+        *endianness = 0;
+        return AUD_FMT_S16;
+    case PA_SAMPLE_S32BE:
+        *endianness = 1;
+        return AUD_FMT_S32;
+    case PA_SAMPLE_S32LE:
+        *endianness = 0;
+        return AUD_FMT_S32;
+    default:
+        dolog ("Internal logic error: Bad pa_sample_format %d\n", fmt);
+        return AUD_FMT_U8;
     }
 }
 
@@ -286,17 +286,17 @@ static void context_state_cb (pa_context *c, void *userdata)
     paaudio *g = userdata;
 
     switch (pa_context_get_state(c)) {
-        case PA_CONTEXT_READY:
-        case PA_CONTEXT_TERMINATED:
-        case PA_CONTEXT_FAILED:
-            pa_threaded_mainloop_signal (g->mainloop, 0);
-            break;
+    case PA_CONTEXT_READY:
+    case PA_CONTEXT_TERMINATED:
+    case PA_CONTEXT_FAILED:
+        pa_threaded_mainloop_signal (g->mainloop, 0);
+        break;
 
-        case PA_CONTEXT_UNCONNECTED:
-        case PA_CONTEXT_CONNECTING:
-        case PA_CONTEXT_AUTHORIZING:
-        case PA_CONTEXT_SETTING_NAME:
-            break;
+    case PA_CONTEXT_UNCONNECTED:
+    case PA_CONTEXT_CONNECTING:
+    case PA_CONTEXT_AUTHORIZING:
+    case PA_CONTEXT_SETTING_NAME:
+        break;
     }
 }
 
@@ -306,15 +306,15 @@ static void stream_state_cb (pa_stream *s, void * userdata)
 
     switch (pa_stream_get_state (s)) {
 
-        case PA_STREAM_READY:
-        case PA_STREAM_FAILED:
-        case PA_STREAM_TERMINATED:
-            pa_threaded_mainloop_signal (g->mainloop, 0);
-            break;
+    case PA_STREAM_READY:
+    case PA_STREAM_FAILED:
+    case PA_STREAM_TERMINATED:
+        pa_threaded_mainloop_signal (g->mainloop, 0);
+        break;
 
-        case PA_STREAM_UNCONNECTED:
-        case PA_STREAM_CREATING:
-            break;
+    case PA_STREAM_UNCONNECTED:
+    case PA_STREAM_CREATING:
+        break;
     }
 }
 
@@ -353,14 +353,14 @@ static pa_stream *qpa_simple_new (
     }
 
     if (r < 0) {
-        goto fail;
+      goto fail;
     }
 
     pa_threaded_mainloop_unlock (g->mainloop);
 
     return stream;
 
-    fail:
+fail:
     pa_threaded_mainloop_unlock (g->mainloop);
 
     if (stream) {
@@ -440,13 +440,11 @@ static int qpa_init_out(HWVoiceOut *hw, struct audsettings *as,
 
     return 0;
 
-    fail1:
+fail1:
     return -1;
 }
 
-
-static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as,
-                       void *drv_opaque)
+static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
 {
     int error;
     struct audsettings obt_as = *as;
@@ -553,7 +551,7 @@ static int qpa_ctl_out (HWVoiceOut *hw, int cmd, ...)
 #endif
 
     switch (cmd) {
-        case VOICE_VOLUME:
+    case VOICE_VOLUME:
         {
             SWVoiceOut *sw;
             va_list ap;
@@ -569,8 +567,8 @@ static int qpa_ctl_out (HWVoiceOut *hw, int cmd, ...)
             pa_threaded_mainloop_lock (g->mainloop);
 
             op = pa_context_set_sink_input_volume (g->context,
-                                                   pa_stream_get_index (pa->stream),
-                                                   &v, NULL, NULL);
+                pa_stream_get_index (pa->stream),
+                &v, NULL, NULL);
             if (!op)
                 qpa_logerr (pa_context_errno (g->context),
                             "set_sink_input_volume() failed\n");
@@ -578,8 +576,8 @@ static int qpa_ctl_out (HWVoiceOut *hw, int cmd, ...)
                 pa_operation_unref (op);
 
             op = pa_context_set_sink_input_mute (g->context,
-                                                 pa_stream_get_index (pa->stream),
-                                                 sw->vol.mute, NULL, NULL);
+                pa_stream_get_index (pa->stream),
+               sw->vol.mute, NULL, NULL);
             if (!op) {
                 qpa_logerr (pa_context_errno (g->context),
                             "set_sink_input_mute() failed\n");
@@ -605,7 +603,7 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
 #endif
 
     switch (cmd) {
-        case VOICE_VOLUME:
+    case VOICE_VOLUME:
         {
             SWVoiceIn *sw;
             va_list ap;
@@ -621,8 +619,8 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
             pa_threaded_mainloop_lock (g->mainloop);
 
             op = pa_context_set_source_output_volume (g->context,
-                                                      pa_stream_get_index (pa->stream),
-                                                      &v, NULL, NULL);
+                pa_stream_get_index (pa->stream),
+                &v, NULL, NULL);
             if (!op) {
                 qpa_logerr (pa_context_errno (g->context),
                             "set_source_output_volume() failed\n");
@@ -631,8 +629,8 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
             }
 
             op = pa_context_set_source_output_mute (g->context,
-                                                    pa_stream_get_index (pa->stream),
-                                                    sw->vol.mute, NULL, NULL);
+                pa_stream_get_index (pa->stream),
+                sw->vol.mute, NULL, NULL);
             if (!op) {
                 qpa_logerr (pa_context_errno (g->context),
                             "set_source_output_mute() failed\n");
@@ -648,10 +646,8 @@ static int qpa_ctl_in (HWVoiceIn *hw, int cmd, ...)
 
 /* common */
 static PAConf glob_conf = {
-#ifdef PA_STREAM_ADJUST_LATENCY
         .adjust_latency_out = 0,
         .adjust_latency_in = 1,
-#endif
 };
 
 static void *qpa_audio_init (void)
@@ -709,9 +705,9 @@ static void *qpa_audio_init (void)
 
     return g;
 
-    unlock_and_fail:
+unlock_and_fail:
     pa_threaded_mainloop_unlock (g->mainloop);
-    fail:
+fail:
     AUD_log (AUDIO_CAP, "Failed to initialize PA context");
     qpa_audio_fini(g);
     return NULL;
@@ -738,96 +734,96 @@ static void qpa_audio_fini (void *opaque)
 }
 
 struct audio_option qpa_options[] = {
-        {
-                .name  = "BUFFER_SIZE_OUT",
-                .tag   = AUD_OPT_INT,
-                .valp  = &glob_conf.buffer_size_out,
-                .descr = "internal buffer size in frames for playback device"
-        },
-        {
-                .name  = "BUFFER_SIZE_IN",
-                .tag   = AUD_OPT_INT,
-                .valp  = &glob_conf.buffer_size_in,
-                .descr = "internal buffer size in frames for recording device"
-        },
-        {
-                .name  = "TLENGTH",
-                .tag   = AUD_OPT_INT,
-                .valp  = &glob_conf.tlength,
-                .descr = "playback buffer target length in frames"
-        },
-        {
-                .name  = "FRAGSIZE",
-                .tag   = AUD_OPT_INT,
-                .valp  = &glob_conf.fragsize,
-                .descr = "fragment length of recording device in frames"
-        },
-        {
-                .name  = "MAXLENGTH_IN",
-                .tag   = AUD_OPT_INT,
-                .valp  = &glob_conf.maxlength_in,
-                .descr = "maximum length of PA recording buffer in frames"
-        },
-        {
-                .name  = "ADJUST_LATENCY_OUT",
-                .tag   = AUD_OPT_BOOL,
-                .valp  = &glob_conf.adjust_latency_out,
-                .descr = "instruct PA to adjust latency for playback device"
-        },
-        {
-                .name  = "ADJUST_LATENCY_IN",
-                .tag   = AUD_OPT_BOOL,
-                .valp  = &glob_conf.adjust_latency_in,
-                .descr = "instruct PA to adjust latency for recording device"
-        },
-        {
-                .name  = "SERVER",
-                .tag   = AUD_OPT_STR,
-                .valp  = &glob_conf.server,
-                .descr = "server address"
-        },
-        {
-                .name  = "SINK",
-                .tag   = AUD_OPT_STR,
-                .valp  = &glob_conf.sink,
-                .descr = "sink device name"
-        },
-        {
-                .name  = "SOURCE",
-                .tag   = AUD_OPT_STR,
-                .valp  = &glob_conf.source,
-                .descr = "source device name"
-        },
-        { /* End of list */ }
+    {
+        .name  = "BUFFER_SIZE_OUT",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.buffer_size_out,
+        .descr = "internal buffer size in frames for playback device"
+    },
+    {
+        .name  = "BUFFER_SIZE_IN",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.buffer_size_in,
+        .descr = "internal buffer size in frames for recording device"
+    },
+    {
+        .name  = "TLENGTH",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.tlength,
+        .descr = "playback buffer target length in frames"
+    },
+    {
+        .name  = "FRAGSIZE",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.fragsize,
+        .descr = "fragment length of recording device in frames"
+    },
+    {
+        .name  = "MAXLENGTH_IN",
+        .tag   = AUD_OPT_INT,
+        .valp  = &glob_conf.maxlength_in,
+        .descr = "maximum length of PA recording buffer in frames"
+    },
+    {
+        .name  = "ADJUST_LATENCY_OUT",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &glob_conf.adjust_latency_out,
+        .descr = "instruct PA to adjust latency for playback device"
+    },
+    {
+        .name  = "ADJUST_LATENCY_IN",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &glob_conf.adjust_latency_in,
+        .descr = "instruct PA to adjust latency for recording device"
+    },
+    {
+        .name  = "SERVER",
+        .tag   = AUD_OPT_STR,
+        .valp  = &glob_conf.server,
+        .descr = "server address"
+    },
+    {
+        .name  = "SINK",
+        .tag   = AUD_OPT_STR,
+        .valp  = &glob_conf.sink,
+        .descr = "sink device name"
+    },
+    {
+        .name  = "SOURCE",
+        .tag   = AUD_OPT_STR,
+        .valp  = &glob_conf.source,
+        .descr = "source device name"
+    },
+    { /* End of list */ }
 };
 
 static struct audio_pcm_ops qpa_pcm_ops = {
-        .init_out = qpa_init_out,
-        .fini_out = qpa_fini_out,
-        .run_out  = qpa_run_out,
-        .write    = qpa_write,
-        .ctl_out  = qpa_ctl_out,
+    .init_out = qpa_init_out,
+    .fini_out = qpa_fini_out,
+    .run_out  = qpa_run_out,
+    .write    = qpa_write,
+    .ctl_out  = qpa_ctl_out,
 
-        .init_in  = qpa_init_in,
-        .fini_in  = qpa_fini_in,
-        .run_in   = qpa_run_in,
-        .read     = qpa_read,
-        .ctl_in   = qpa_ctl_in
+    .init_in  = qpa_init_in,
+    .fini_in  = qpa_fini_in,
+    .run_in   = qpa_run_in,
+    .read     = qpa_read,
+    .ctl_in   = qpa_ctl_in
 };
 
 static struct audio_driver pa_audio_driver = {
-        .name           = "pa",
-        .descr          = "http://www.pulseaudio.org/",
-        .options        = qpa_options,
-        .init           = qpa_audio_init,
-        .fini           = qpa_audio_fini,
-        .pcm_ops        = &qpa_pcm_ops,
-        .can_be_default = 1,
-        .max_voices_out = INT_MAX,
-        .max_voices_in  = INT_MAX,
-        .voice_size_out = sizeof (PAVoiceOut),
-        .voice_size_in  = sizeof (PAVoiceIn),
-        .ctl_caps       = VOICE_VOLUME_CAP
+    .name           = "pa",
+    .descr          = "http://www.pulseaudio.org/",
+    .options        = qpa_options,
+    .init           = qpa_audio_init,
+    .fini           = qpa_audio_fini,
+    .pcm_ops        = &qpa_pcm_ops,
+    .can_be_default = 1,
+    .max_voices_out = INT_MAX,
+    .max_voices_in  = INT_MAX,
+    .voice_size_out = sizeof (PAVoiceOut),
+    .voice_size_in  = sizeof (PAVoiceIn),
+    .ctl_caps       = VOICE_VOLUME_CAP
 };
 
 static void register_audio_pa(void)
