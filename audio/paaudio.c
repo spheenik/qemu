@@ -459,7 +459,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
 
     int64_t fragsize = g->conf.fragsize;
     if (fragsize == 0) {
-        fragsize = frames_per_tick_x1000  / 2500;
+        fragsize = frames_per_tick_x1000 / 1000;
     }
     int64_t buflen = g->conf.buffer_size_in;
     if (buflen == 0) {
@@ -467,7 +467,7 @@ static int qpa_init_in(HWVoiceIn *hw, struct audsettings *as, void *drv_opaque)
     }
     int64_t maxlength = g->conf.maxlength_in;
     if (maxlength == 0) {
-        maxlength = fragsize * 4;
+        maxlength = fragsize * 2;
     }
 
     ldebug("IN internal buffer: %.2f ms (%"PRId64" frames)\n",
