@@ -201,7 +201,7 @@
 ##
 # @AudiodevPaPerDirectionOptions:
 #
-# Options of the Pulseaudio backend that are used for both playback and
+# Options of the PulseAudio backend that are used for both playback and
 # recording.
 #
 # @name: name of the sink/source to use
@@ -212,6 +212,48 @@
   'base': 'AudiodevPerDirectionOptions',
   'data': {
     '*name': 'str' } }
+
+##
+# @AudiodevPaInOptions:
+#
+# Options of the PulseAudio backend that are used for recording.
+#
+# @fragsize: The server sends data in blocks of this length.
+#
+# @maxlength: Maximum length of the buffer on the server.
+#
+# @adjust-latency: Try to adjust the latency of the source based on
+#                  the requested buffer metrics and adjust buffer metrics
+#                  accordingly. (default true)
+#
+# Since: 4.0
+##
+{ 'struct': 'AudiodevPaInOptions',
+  'base': 'AudiodevPaPerDirectionOptions',
+  'data': {
+    '*fragsize': 'uint32',
+    '*maxlength': 'uint32',
+    '*adjust-latency': 'bool' } }
+
+##
+# @AudiodevPaOutOptions:
+#
+# Options of the PulseAudio backend that are used for playback.
+#
+# @tlength: The server tries to assure that at least tlength bytes are always
+#           available.
+#
+# @adjust-latency: Try to adjust the latency of the sink based on
+#                  the requested buffer metrics and adjust buffer metrics
+#                  accordingly. (default false)
+#
+# Since: 4.0
+##
+{ 'struct': 'AudiodevPaOutOptions',
+  'base': 'AudiodevPaPerDirectionOptions',
+  'data': {
+    '*tlength': 'uint32',
+    '*adjust-latency': 'bool' } }
 
 ##
 # @AudiodevPaOptions:
@@ -228,8 +270,8 @@
 ##
 { 'struct': 'AudiodevPaOptions',
   'data': {
-    '*in':     'AudiodevPaPerDirectionOptions',
-    '*out':    'AudiodevPaPerDirectionOptions',
+    '*in':     'AudiodevPaInOptions',
+    '*out':    'AudiodevPaOutOptions',
     '*server': 'str' } }
 
 ##

@@ -1641,29 +1641,29 @@ void AUD_set_volume_in (SWVoiceIn *sw, int mute, uint8_t lvol, uint8_t rvol)
 void audio_create_pdos(Audiodev *dev)
 {
     switch (dev->driver) {
-#define CASE(DRIVER, driver, pdo_name)                              \
+#define CASE(DRIVER, driver, in_name, out_name)                     \
     case AUDIODEV_DRIVER_##DRIVER:                                  \
         if (!dev->u.driver.has_in) {                                \
             dev->u.driver.in = g_malloc0(                           \
-                sizeof(Audiodev##pdo_name##PerDirectionOptions));   \
+                sizeof(Audiodev##in_name));                       \
             dev->u.driver.has_in = true;                            \
         }                                                           \
         if (!dev->u.driver.has_out) {                               \
             dev->u.driver.out = g_malloc0(                          \
-                sizeof(AudiodevAlsaPerDirectionOptions));           \
+                sizeof(Audiodev##out_name));                      \
             dev->u.driver.has_out = true;                           \
         }                                                           \
         break
 
-        CASE(NONE, none, );
-        CASE(ALSA, alsa, Alsa);
-        CASE(COREAUDIO, coreaudio, Coreaudio);
-        CASE(DSOUND, dsound, );
-        CASE(OSS, oss, Oss);
-        CASE(PA, pa, Pa);
-        CASE(SDL, sdl, );
-        CASE(SPICE, spice, );
-        CASE(WAV, wav, );
+        CASE(NONE, none, PerDirectionOptions, PerDirectionOptions);
+        CASE(ALSA, alsa, AlsaPerDirectionOptions, AlsaPerDirectionOptions);
+        CASE(COREAUDIO, coreaudio, CoreaudioPerDirectionOptions, CoreaudioPerDirectionOptions);
+        CASE(DSOUND, dsound, PerDirectionOptions, PerDirectionOptions);
+        CASE(OSS, oss, OssPerDirectionOptions, OssPerDirectionOptions);
+        CASE(PA, pa, PaInOptions, PaOutOptions);
+        CASE(SDL, sdl, PerDirectionOptions, PerDirectionOptions);
+        CASE(SPICE, spice, PerDirectionOptions, PerDirectionOptions);
+        CASE(WAV, wav, PerDirectionOptions, PerDirectionOptions);
 
     case AUDIODEV_DRIVER__MAX:
         abort();
